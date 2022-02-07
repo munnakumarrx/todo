@@ -1,46 +1,54 @@
-const pool = require('../database/connection')
-// const app = require('../app')
+const auth = require('../models/auth')
 
+const login = async (req, res)=>{
+    try{
+        const user = await auth.findOne(req.body)
+        if (!user){
+            return res.status(401).json({
+                msg: "Invalid Credentials"
+            })
+        }
+        req.session.user = user.id
+        res.status(200).json({
+            msg: "You are logged in!"
+        })
+    } catch (err){
+        res.status(500).json({
+            error: err.message
+        })
+    }
 
-const login = (req, res)=>{
-    const {email, password} = req.body
-    pool.query(
-        'SELECT id FROM users WHERE email=$1 AND password=$2',
-        [email, password],
-        (error, results)=>{
-            if(error){
-                throw error
-            } else if(results.rows.length === 0){
-                res.status(404).json({
-                    "message": "invalid credentials"
-                })
-            } else{
-                // console.log(results.rows, results.rows[0].id)
-                req.session.user = results.rows[0].id
-                res.status(200).json({
-                    "message": "You are logged in!"
-                })
-                }
-            }
-    )
 }
 
 const logout = (req, res)=>{
-    console.log(req.session)
     const {user} = req.session
     if(user){
         req.session.destroy()
         res.status(200).json({
-            "message": "You are successfully logged out!"
+            msg: "You are successfully logged out!"
         })
     } else{
         res.status(200).json({
-            "message": "You are already logged out!"
+            error: "You are already logged out!"
+        })
+    }
+}
+
+const register = async (req, res)=>{
+    try{
+        await auth.create(req.body)
+        res.status(201).json({
+            msg: `User created`
+        })
+    }catch (err){
+        res.status(500).json({
+            error: err.message
         })
     }
 }
 
 module.exports = {
     login,
-    logout
+    logout,
+    register
 }

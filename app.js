@@ -1,8 +1,15 @@
 const express = require('express')
+const sessions = require("express-session")
+const cookieParser = require("cookie-parser")
+const mongoose  = require('mongoose')
+require('dotenv').config()
+
+const isAuthenticated = require('./middleware/authenticated')
+const userRouter = require('./routes/auth')
+const todoRouter = require('./routes/todo')
+
 const app = express()
 const port = 3000
-const sessions = require("express-session");
-const cookieParser = require("cookie-parser");
 
 // creating 24 hours from milliseconds
 const oneDay = 1000 * 60 * 60 * 24;
@@ -16,17 +23,21 @@ app.use(sessions({
     cookie: { maxAge: oneDay },
     resave: false
 }));
+
 app.use(cookieParser())
-
-const isAuthenticated = require('./middleware/authenticated')
-const userRouter = require('./routes/auth')
-const todoRouter = require('./routes/todo')
-
-app.use('/', userRouter)
+app.use('/api/v1', userRouter)
 app.use(isAuthenticated)
-app.use('/todo', todoRouter)
+app.use('/api/v1/todo', todoRouter)
 
+const start = async () =>{
+    console.log('Server is starting..')
+    // db connection
+    await mongoose.connect(process.env.MONGO_URI)
+    console.log("Database connected..")
+    //server
+    app.listen(port, ()=>{
+        console.log(`todo is listening at port: ${port}`)
+    })
+}
+start().catch(err=>console.log(`db connection failed due to ${err.message}`))
 
-app.listen(port, ()=>{
-    console.log(`todo is listening at port: ${port}`)
-})

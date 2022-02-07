@@ -1,135 +1,139 @@
-const pool = require('../database/connection')
+const todo = require('../models/todo')
 
+const getAllTodo = async(req, res)=>{
+    try{
+        const data = await todo.find({user: req.session.user})
+        res.status(200).json({
+            data: data
+        })
+    }catch(err){
+        res.status(500).json({
+            error: err.message
+        })
+    }
 
-const getTodo = (req, res)=>{
-    pool.query(
-        'SELECT id,title,description FROM todo WHERE user_id=$1',
-        [req.session.user],
-        (error, results)=>{
-            if(error){
-                res.status(404).json({
-                    error
-                })
-            } else{
-                res.status(200).json(results.rows)
-            }
-        }
-    )
 }
 
-const postTodo = (req, res)=>{
-    const {title, description, due_date} = req.body
-    const Dates = new Date()
-    const date = Dates.getDate()
-    const month = Dates.getMonth() + 1
-    const year = Dates.getFullYear()
-    const fullDate = `${year}-${month}-${date}`
-    pool.query(
-        'INSERT INTO todo(user_id,title,description,created_at,due_date) VALUES($1,$2,$3,$4,$5)',
-        [req.session.user, title, description, fullDate, due_date],
-        (error, results) =>{
-            if(error){
-                res.status(404).json({
-                    error
-                })
-            } else{
-                res.status(200).json({
-                    "message": "data inserted"
-                })
-            }
+const getTodo = async(req, res)=>{
+    try{
+        const toDo = await todo.findById({_id:req.params.id, user:req.session.user})
+        if (!toDo){
+            return res.status(404).json({
+                msg:`toDO not found with this id ${req.params.id}`
+            })
         }
-    )
+        res.status(200).json({
+            data:toDo
+        })
+    }catch(err){
+        res.status(500).json({
+            error: err.message
+        })
+    }
 }
 
-const updateTodo = (req, res)=>{
-    const {title, description} = req.body
-    const id = parseInt(req.params.id)
-    pool.query(
-        'UPDATE todo SET title=$1, description=$2 WHERE id=$3',
-        [title, description, id],
-        (error, results)=>{
-            if(error){
-                res.status(404).json(error)
-            }
-            else{
-                res.status(200).json({
-                    "message": "updated"
-                })
-            }
-        }
-    )
+const postTodo = async (req, res)=>{
+    try{
+        await todo.create({...req.body,user: req.session.user})
+        res.status(200).json({
+            msg: "data inserted"
+        })
+    }catch(err){
+        res.status(500).json({
+            error: err.message
+        })
+    }
 }
 
-const deleteTodo = (req, res)=>{
-    const id = parseInt(req.params.id)
-    pool.query(
-        'DELETE FROM todo WHERE id=$1',
-        [id],
-        (error, results)=>{
-            if(error){
-                res.status(404).json(error)
-            }
-            else{
-                res.status(200).json({
-                    "message": "deleted"
-                })
-            }
-        }
-    )
-}
-
-const filterByDate = (req, res)=>{
-    const {search} = req.query
-    const id = parseInt(req.params.id)
-    const Dates = new Date()
-    const date = Dates.getDate()
-    const month = Dates.getMonth() + 1
-    const year = Dates.getFullYear()
-    const fullDate = `${year}-${month}-${date}`
-    if(search === 'c') {
-        pool.query(
-            'SELECT id,title,description FROM todo WHERE user_id=$1 and created_at=$2',
-            [req.session.user, fullDate],
-            (error, results) => {
-                if (error) {
-                    res.status(404).json(error)
-                } else {
-                    res.status(200).json(results.rows)
-                }
-            }
+const updateTodo = async (req, res)=>{
+    try{
+        const user = await todo.findByIdAndUpdate({_id:req.params.id, user:req.session.user},
+            {...req.body},
+            {new:true, runValidators:true}
         )
-    }else if(search === 'e') {
-        pool.query(
-            'SELECT id,title,description FROM todo WHERE user_id=$1 and due_date<$2',
-            [req.session.user, fullDate],
-            (error, results) => {
-                if (error) {
-                    res.status(404).json(error)
-                } else {
-                    res.status(200).json(results.rows)
-                }
-            }
-        )
-    }else if(search === 'u') {
-        pool.query(
-            'SELECT id,title,description FROM todo WHERE user_id=$1 and due_date>$2',
-            [req.session.user, fullDate],
-            (error, results) => {
-                if (error) {
-                    res.status(404).json(error)
-                } else {
-                    console.log(results.rows)
-                    res.status(200).json(results.rows)
-                }
-            }
-        )
+        if (!user){
+            return res.status(404).json({
+                msg: `task doesn't exist with id ${req.params.id}`
+            })
+        }
+
+        res.status(200).json({
+            data:user
+        })
+    }catch(err){
+        res.status(500).json({
+            error: err.message
+        })
+    }
+}
+
+const deleteTodo = async (req, res)=>{
+    try{
+        const user = await todo.findByIdAndDelete({_id:req.params.id, user:req.session.user})
+        if (!user){
+            return res.status(404).json({
+                msg: `task doesn't exist with id ${req.params.id}`
+            })
+        }
+        res.status(200).json({
+            msg:"todo is deleted Successfully"
+        })
+    }catch(err){
+        res.status(500).json({
+            error: err.message
+        })
+    }
+}
+
+const filterTodoByDate = async (req, res)=>{
+    const {createdAt, lt_dueDate, gt_dueDate} = req.query
+    try{
+        let toDo = []
+        if (createdAt){
+            toDo = await todo.find(
+                {createdAt: req.query.createdAt,
+                    user:req.session.user
+                })
+        }else if(lt_dueDate){
+            toDo = await todo.find({
+                user: req.session.user,
+                dueDate: {$lt: lt_dueDate}
+            })
+        }else if(gt_dueDate){
+            toDo = await todo.find({
+                user: req.session.user,
+                dueDate: {$gte: gt_dueDate},
+            })
+        }
+
+        res.status(200).json({
+            data:toDo
+        })
+    }catch(err){
+        console.log("Hi")
+        res.status(500).json({
+            error: err.message
+        })
     }
 }
 
 module.exports = {
+    getAllTodo,
     getTodo,
     postTodo,
     updateTodo,
     deleteTodo,
-    filterByDate,
+    filterTodoByDate,
 }
+
+
+
+// ref
+// const user = await todo.findById(req.params.id)
+//     .findOne({user:req.session.user})
+// toDo = await todo.find(
+//     {user:req.session.user}
+// ).where('dueDate').lt(lt_dueDate)
+// toDo = await todo.find(
+//     {user:req.session.user}
+// ).where('dueDate').gte(gt_dueDate)
